@@ -8,5 +8,8 @@
     "workbench.preferredDarkColorTheme": "Cherry Blossom Dimmed",
     "workbench.preferredHighContrastColorTheme": "Cherry Blossom Dimmed",
     "workbench.preferredHighContrastLightColorTheme": "Cherry Blossom Warm",
-    "workbench.preferredLightColorTheme": "Cherry Blossom Warm"
+    "workbench.preferredLightColorTheme": "Cherry Blossom Warm",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
 }

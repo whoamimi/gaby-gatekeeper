@@ -8,7 +8,6 @@ This script contains dataclass schemas used across the Gaby Agent application to
 import pandas as pd
 from dataclasses import dataclass
 
-
 @dataclass
 class EntryReport:
     description: str | None = None
@@ -23,19 +22,19 @@ class MissingDataReport:
     missing_perc: float
     data_field_type: str
 
-@dataclass 
+@dataclass
 class Stage:
     """ Data cleaning stage checklists to assist agents' project management. """
     id: str
-    label: str 
+    label: str
     description: str
-    stages: dict[list] = {}
-    
-    @property 
+    stages: dict[str, list] = {}
+
+    @property
     def list_stages(self):
         yield from self.stages.keys()
-    
-@dataclass 
+
+@dataclass
 class Workflow:
     """ All available Workflow services. """
     data_cleaning: list[Stage] = []
@@ -49,7 +48,7 @@ class Workflow:
 
     def add_stage(self, service: str, id: str, label: str, description: str):
         """ Add a new stage to the specified service category. """
-        
+
         if hasattr(self, service):
             getattr(self, service).append(Stage(id=id, label=label, description=description))
         else:

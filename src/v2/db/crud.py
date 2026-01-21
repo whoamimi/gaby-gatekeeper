@@ -1,9 +1,4 @@
-"""
-
-gatekeeper/_utils.py
-
-Contains DB Handlers / Utils.
-"""
+""" db/crud.py """
 
 import pandas as pd
 from google.cloud import bigquery

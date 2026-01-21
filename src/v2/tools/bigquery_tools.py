@@ -1,18 +1,19 @@
 """
-gatekeeper/cleaner.py
+bigquery_tools.py
 
 This module contains SQL templates and functions to interact with
 Google BigQuery for data cleaning and assist generative models in making decisions.
 
 """
 
-from ._wrapper import pandas_gatekeeper
-from ..config import Config
-from .prompt import SQL_DESCRIBE_DATA_FIELD_LABEL, SQL_DETECT_NUMERIC_FIELD
+from ...v1.core.config import Config
+from ..agent.registry import Toolbox
+from ..config.consts import SQL_DESCRIBE_DATA_FIELD_LABEL, SQL_DETECT_NUMERIC_FIELD
 
+bq_profilers = Toolbox('bigquery_tools')
 config = Config()
 
-@pandas_gatekeeper
+@bq_profilers
 def describe_data_field(
     data_summary_id: str,
     connection_id: str | None = config.bq_model_connection,
@@ -24,7 +25,7 @@ def describe_data_field(
         endpoint=endpoint
     )
 
-@pandas_gatekeeper
+@bq_profilers
 def detect_numeric_field(
     data_summary_id: str,
     connection_id: str | None = config.bq_model_connection,

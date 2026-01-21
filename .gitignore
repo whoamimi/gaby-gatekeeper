@@ -213,3 +213,6 @@ tests/__pycache__
 notebooks/broken_submission.ipynb
 
 **/*/models
+src/v1/*
+feedback.txt 
+notebooks/orchestrating_agent.ipynb 

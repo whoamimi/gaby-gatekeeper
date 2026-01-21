@@ -1,8 +1,10 @@
-""" clean_stage_a.py """
+""" swamp.py
+
+Demo module for agent-based data cleaning tasks.
+"""
 
 import pandas as pd
 from ._core import GabyBasement, Instructor
-from ._utils import agent_toolbox, TOOLS_REGISTRY
 
 class DatasetSummarizer(
     GabyBasement,
