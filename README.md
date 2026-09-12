@@ -1,6 +1,4 @@
-# databy-gatekeeper
-
-*(recommended rename of `databy-bq` — the repo's own README names its core pattern the "Memory Gatekeeper"; BigQuery is the substrate, not the idea)*
+# Gaby BigQuery Gatekeeper
 
 [![Status](https://img.shields.io/badge/status-archived%20hackathon%20submission-lightgrey)](#)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://python.org)
