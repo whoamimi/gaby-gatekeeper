@@ -1,137 +1,116 @@
-# AI Data Agent Google BigQuery AI/ML Kaggle (Archived)
+# databy-gatekeeper
 
-This project is for the [Kaggle Google BigQuery AI](https://www.kaggle.com/competitions/bigquery-ai-hackathon/writeups) submission.
+*(recommended rename of `databy-bq` — the repo's own README names its core pattern the "Memory Gatekeeper"; BigQuery is the substrate, not the idea)*
 
-Gaby AI is an autonomous data cleaning agent using BigQuery AI as his personal Memory **Gatekeeper**.
+[![Status](https://img.shields.io/badge/status-archived%20hackathon%20submission-lightgrey)](#)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://python.org)
+[![BigQuery AI](https://img.shields.io/badge/Google-BigQuery%20AI-4285F4)](https://cloud.google.com/bigquery)
 
-Leveraged BigQuery Methods:
+My Kaggle "BigQuery AI Hackathon" submission for **Gaby**, a promptless, self-directed data-cleaning agent: instead of calling an LLM API and a database as two separate systems, it pushes reasoning itself into SQL via BigQuery's `AI.GENERATE`/`AI.GENERATE_TABLE`, and uses BigQuery tables as the agent's episodic memory.
 
-- AI.GENERATE for field descriptions
-- AI.GENERATE_TABLE for missing data strategies
-- Vector search for semantic field matching
+## Highlights
 
-## Demo Streamlit App: How it works:
+- **Objective**: test whether a data warehouse can double as an agent's reasoning engine and long-term memory, so Gaby's field-level decisions (descriptions, missing-data strategy) are generated and stored in the same place the data lives, instead of round-tripping through a separate app-side LLM call.
+- **Key Feature**:
+  - **BigQuery-as-reasoning-engine** — SQL templates in `bigquery_tools.py` parameterize `AI.GENERATE`/`AI.GENERATE_TABLE` calls against a BigQuery-hosted Gemini 2.5 Flash model connection, so field descriptions and missing-data strategies are generated inside the query itself.
+  - **Memory Gatekeeper** — a `pandas_gatekeeper` decorator guards query execution and treats `observations.*`/`cognitive.*` BigQuery tables as the agent's episodic memory, persisting what it has already learned about a dataset across episodes.
+  - **Dual-LLM split** — a local Ollama model (Llama-3.2-3B-Instruct) handles fast, per-field reasoning loops; the remote BigQuery-hosted Gemini endpoint handles scaled, batch generation.
+  - A declarative agent-subclassing pattern (`GabyBasement`) and a docstring-introspecting `Toolbox` function-calling registry for exposing Python tools to the LLM.
+- **Tech stack**: `google-cloud-bigquery` / `google-cloud-aiplatform` (Gemini 2.5 Flash as a BigQuery remote model), local Ollama client, Streamlit demo UI, pandas/numpy/seaborn/matplotlib/altair/plotly/statsmodels/scipy for profiling, `sentence-transformers`/`transformers` for semantic field matching, Docker Compose (webapp + Ollama + a resource-capped agent sandbox container), pydantic `BaseSettings` config, pytest.
+- **Evaluation**: the main Kaggle submission notebook runs the full pipeline end-to-end against a real "dirty" Café Sales dataset as a demo/validation pass; `missing_data_tests.ipynb` implements t-test/chi-square-based classification of missingness type (MAR vs. MCAR) against synthetic mock data as the closest thing to a formal benchmark; `test_core_agent__core.py` unit-tests the `GabyBasement.__init_subclass__` agent-registration behavior.
+- **Results & Conclusion**:
+  - Embedding `AI.GENERATE` calls directly in SQL removes an entire integration layer (no separate LLM client in the hot path) and keeps generated metadata co-located with the data it describes.
+  - The repo was captured mid-refactor (a `v1 → v2` migration): several imports in `src/v2` reference a `config` package and a `v1.core.config` module that no longer exist in the tree, and the sole test file imports from a `src.gaby_agent...` path that doesn't match `src/v2` — a reminder to finish the migration before extending this further.
+  - Next: resolve the broken import graph, then decide whether BigQuery AI stays Gaby's primary memory store or becomes one of several backends behind a common memory interface.
 
-To this date, Gaby AI is an autonomous data cleaning agent using BigQuery AI as reasoning engine.
-
-1. User uploads dataset via Streamlit → DataProfiler creates episode
-2. Local analysis (pandas) generates field summaries → BigQuery storage
-3. AI agent swamps (DatasetSummarizer, FieldDescription) process via prompts
-4. BigQuery AI.GENERATE creates contextual field descriptions at scale
-5. Results displayed in Streamlit with learning stored for future episodes
-
-## Directory Structure
-
-```text
-src/v2/
-    agent/
-        __init__.py
-        _core.py
-        registry.py
-        swamp.py
-    config/
-        __init__.py
-        config_models.yaml
-        consts.py
-    db/
-        __init__.py
-        crud.py
-        schema.py
-    tools/
-        __init__.py
-        bigquery_tools.py
-        sandbox.py
-    utils/
-        __init__.py
-        setup.py
-```
-
-## Objective
-
-To build autonomous human-like agent to reason all types of datasets. On a more realistic note, an agent that lives at the heart of all data teams.
-
-## Architecture
+## Project Directory Overview
 
 ```text
-                            ┌─────────────────────────────┐
-                            │    Streamlit Web App        │
-                            │  (Gaby UI, file upload,     │
-                            │   tag management, results)  │
-                            └────────────┬────────────────┘
-                                         │ user interactions
-                                         ▼
-                    ┌─────────────────────────────────────────────────┐
-                    │              Gaby Agent Core                    │
-                    │  (GabyBasement, Instructor, DataProfiler,      │
-                    │   episode management, config validation)       │
-                    └────────┬─────────────┬─────────────┬───────────┘
-                             │             │             │
-        data cleaning /      │  reasoning  │  SQL gen /  │  RL learning /
-        profiling            │  prompts    │  execution  │  observations
-                             ▼             ▼             ▼
-    ┌─────────────────────┐  ┌──────────────────┐  ┌─────────────────────┐
-    │   Stage Processors  │  │   Local LLMs     │  │  Policy & Learning  │
-    │ - DatasetSummarizer │◄─┤ (Ollama/Gemini   │  │ - Reward tracking   │
-    │ - FieldDescription  │  │  for reasoning &  │  │ - Episode storage   │
-    │ - MissingAnalysis   │  │  field analysis)  │  │ - Strategy updates  │
-    │ - Schema Detection  │  │                  │  │ - Observation store │
-    └─────────┬───────────┘  └─────────┬────────┘  └─────────┬───────────┘
-              │                        │                     │
-              │ pandas operations      │ prompt/response     │ learning
-              │ & data validation      │ for descriptions    │ artifacts
-              ▼                        ▼                     ▼
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │                         Google BigQuery                             │
-    │  Data Layer:                                                        │
-    │  - cleaning_service.sample_dataset (raw data)                      │
-    │  - cleaning_service.field_summary (column analysis)                │
-    │  - observations.* (agent learning history)                         │
-    │  - cognitive.* (decision patterns & policies)                      │
-    │  - cleaned_data.* (processed output datasets)                      │
-    │                                                                     │
-    │  AI/ML Layer:                                                       │
-    │  - AI.GENERATE (field descriptions, missing data strategies)       │
-    │  - AI.GENERATE_TABLE (structured data generation)                  │
-    │                                                                     │
-    │  Infrastructure:                                                    │
-    │  - Remote models (Gemini 2.5 Flash via endpoints)                  │
-    │  - Audit logs, policy checkpoints, staging tables                  │
-    │  - Real-time query execution with pandas_gatekeeper decorator      │
-    └─────────────────────────────────────────────────────────────────────┘
-              ▲                         ▲                          ▲
-              │ upload & analyze        │ AI-generated insights    │ store learning
-              │ dataset summaries       │ & field descriptions     │ & observations
-              │                         │                          │
-    ┌─────────┴───────────┐   ┌─────────┴──────────┐   ┌─────────┴───────────┐
-    │  Python Libraries   │   │  BigQuery Wrapper  │   │   MCP Integration   │
-    │ - pandas (local)    │   │ - @pandas_gatekeeper│   │ - Model Context     │
-    │ - pathlib (files)   │   │ - SQL generators    │   │   Protocol support │
-    │ - uuid (episodes)   │   │ - Error handling    │   │ - Agent sandboxing  │
-    └─────────────────────┘   └────────────────────┘   └─────────────────────┘
+databy-bq/
+├── notebooks/
+│   ├── gcp_first_run.ipynb, gcp_upload_file.ipynb, gcp_add_boolean_column.ipynb
+│   ├── kaggle_data_cleaning_demo_submission.ipynb   # main Kaggle demo
+│   └── missing_data_tests.ipynb                     # MAR/MCAR statistical tests
+├── src/
+│   └── v2/
+│       ├── agent/    # _core.py (GabyBasement), registry.py (Toolbox), swamp.py (agents)
+│       ├── db/       # crud.py (BigQuery upload), schema.py (dataclasses)
+│       ├── tools/    # bigquery_tools.py (AI.GENERATE SQL templates), sandbox.py
+│       └── utils/    # setup.py (Settings/LocalConfig/EpisodeConfig)
+├── tests/
+│   └── test_core_agent__core.py
+├── docker-compose.yml
+├── pyproject.toml
+├── requirements.txt
+└── feedback.txt
 ```
 
-## Reinforcement Learning Methods
+## System Architecture
 
-These lightmodels depend on BigQuery ML methods to assist in agent's feedback loop and dedecision-makng pocesses.
-
-```text
-Agent Learning Summary
-
-   ┌─────────────────────┐          ┌───────────────────────────┐
-   │                     │ Actions  │                           │
-   │   Agent (Gaby AI)   ├─────────►│   BigQuery SQL + AI/ML    │
-   │                     │          │   (AI.GENERATE_*, ML.*)   │
-   └─────────────────────┘          └───────────────────────────┘
-              ▲                               │
-              │ Predicted Rewards/Policies    │ Data Access & Processing
-              │                               ▼
-   ┌─────────────────────┐          ┌───────────────────────────┐
-   │ Reward Trajectory   │◄─────────┤  Environment (Datasets)   │
-   │   Projection        │  New     │ (raw + processed tables)  │
-   │ (Forecast States)   │  Insights└───────────────────────────┘
-   └─────────────────────┘
+```mermaid
+flowchart LR
+    U[Streamlit UI] -- upload dataset --> Profiler[DataProfiler: pandas summary]
+    Profiler --> Episode[(BigQuery observations.*)]
+    Episode --> Agents[DatasetSummarizer / FieldDescription agents]
+    Agents -- AI.GENERATE / AI.GENERATE_TABLE --> BQAI[BigQuery-hosted Gemini 2.5 Flash]
+    Agents -- fast per-field loop --> Ollama[Local Ollama: Llama-3.2-3B]
+    BQAI --> Memory[(BigQuery cognitive.* memory)]
+    Memory --> Profiler
+    Memory --> U
 ```
 
-## Uncleaned Dataset used for testing / validation
+The RL-flavoured framing in the original README treats this as a loop — Agent → BigQuery SQL/AI/ML → Dataset/Environment → reward trajectory → back to the Agent — with the Memory Gatekeeper deciding what gets written back into `cognitive.*` for future episodes to read.
 
-- [Café Sales Dataset - Download](https://www.kaggle.com/account/login?titleType=dataset-downloads&showDatasetDownloadSkip=False&messageId=datasetsWelcome&returnUrl=%2Fdatasets%2Fahmedmohamed2003%2Fcafe-sales-dirty-data-for-cleaning-training%2Fversions%2F1%3Fresource%3Ddownload)
+## Dev Notes
+
+- **Requirements**
+  - Python ≥ 3.9
+  - A Google Cloud project with BigQuery + BigQuery AI (Gemini remote model connection) enabled
+  - Ollama running locally (or a hosted Ollama endpoint) for the local LLM path
+
+- **Installation**:
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/whoamimi/databy-bq.git
+    cd databy-bq
+
+    # Create and activate environment
+    conda create -n databy-gatekeeper python=3.9 -y
+    conda activate databy-gatekeeper
+
+    # Install dependencies
+    pip install -r requirements.txt
+    cp .env.example .env   # fill in GCP + Ollama credentials
+    ```
+
+- **To start**:
+
+    ```bash
+    docker compose up
+    # or, for the Streamlit demo alone
+    streamlit run src/v2/app.py
+    ```
+
+- **Test**:
+
+    ```bash
+    pytest
+    ```
+
+- **Reproducing Results**: to rerun the Kaggle submission demo:
+  1. Set your BigQuery project/dataset IDs in `.env`.
+  2. Open and run `notebooks/kaggle_data_cleaning_demo_submission.ipynb` top to bottom against the Café Sales dataset (or your own dataset uploaded via `src/v2/db/crud.py`).
+
+## Citation
+
+If you use this software or method in your work, please cite it as follows:
+
+```bibtex
+@software{mimi2026databygatekeeper,
+  author = {Mimi},
+  title  = {databy-gatekeeper: BigQuery AI as reasoning engine and memory for the Gaby data-cleaning agent},
+  year   = {2026},
+  url    = {https://github.com/whoamimi/databy-bq}
+}
+```
